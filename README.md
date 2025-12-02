@@ -65,7 +65,7 @@ lsgroups -u root -p -v   # Root user with permissions (verbose)
 
 ### **Installation:**
 ```bash
-wget https://github.com/stefan-hacks/lsgroups/blob/main/lsgorups.sh
+wget https://github.com/stefan-hacks/lsgroups/blob/main/lsgroups.sh
 
 # Make it executable
 chmod +x lsgroups.sh
