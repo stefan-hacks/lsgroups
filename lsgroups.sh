@@ -2,7 +2,7 @@
 
 # lsgroups - Enhanced group listing tool with colorized output
 # Author: SysAdmin Toolkit
-# Version: 2.0.0
+# Version: 2.0.1
 
 # Color definitions with fallback for non-color terminals
 if [[ -t 1 ]] && [[ -z "${NO_COLOR}" ]] && [[ "${TERM}" != "dumb" ]]; then
@@ -16,8 +16,7 @@ if [[ -t 1 ]] && [[ -z "${NO_COLOR}" ]] && [[ "${TERM}" != "dumb" ]]; then
   BOLD=$(tput bold)
   DIM=$(tput dim)
   RESET=$(tput sgr0)
-  BG_BLUE=$(tput setab 4)
-  BG_GRAY=$(tput setab 8)
+  # BG_BLUE and BG_GRAY are intentionally left out as they're not used
 else
   RED=""
   GREEN=""
@@ -29,14 +28,12 @@ else
   BOLD=""
   DIM=""
   RESET=""
-  BG_BLUE=""
-  BG_GRAY=""
 fi
 
 # ASCII art for header
 HEADER="
 ${BLUE}╔══════════════════════════════════════════════════════════════╗${RESET}
-${BLUE}║${RESET}${BOLD}${CYAN}                    lsgroups v2.0.0${RESET}                      ${BLUE}║${RESET}
+${BLUE}║${RESET}${BOLD}${CYAN}                    lsgroups v2.0.1${RESET}                      ${BLUE}║${RESET}
 ${BLUE}║${RESET}${DIM}          Enhanced Group Listing Tool${RESET}                    ${BLUE}║${RESET}
 ${BLUE}╚══════════════════════════════════════════════════════════════╝${RESET}
 "
@@ -104,14 +101,17 @@ get_group_info() {
 show_group_members() {
   local groupname="$1"
   local group_info
+  local group_id
+  local members
 
-  if ! group_info=$(get_group_info "$groupname"); then
+  group_info=$(get_group_info "$groupname")
+  if [[ -z "$group_info" ]]; then
     echo "${RED}Error: Group '$groupname' not found${RESET}" >&2
     return 1
   fi
 
-  local group_id=$(echo "$group_info" | cut -d: -f3)
-  local members=$(echo "$group_info" | cut -d: -f4)
+  group_id=$(echo "$group_info" | cut -d: -f3)
+  members=$(echo "$group_info" | cut -d: -f4)
 
   echo "${BOLD}${CYAN}══════════════════════════════════════════════════════════════${RESET}"
   echo "${BOLD}${WHITE}Group:${RESET} ${GREEN}${groupname}${RESET} ${DIM}(GID: ${group_id})${RESET}"
@@ -127,7 +127,7 @@ show_group_members() {
   fi
 
   # Show files owned by this group
-  if [[ "$SHOW_PERMISSIONS" == "true" ]] && [[ "$EUID" -eq 0 ]]; then
+  if [[ "${SHOW_PERMISSIONS}" == "true" ]] && [[ "$EUID" -eq 0 ]]; then
     echo ""
     echo "${BOLD}${WHITE}Recently modified group-writable files:${RESET}"
     find / -type f -group "$groupname" -perm -g=w 2>/dev/null |
@@ -145,23 +145,23 @@ list_all_groups() {
   echo "${BOLD}${WHITE}SYSTEM GROUPS${RESET}"
   echo "${CYAN}══════════════════════════════════════════════════════════════${RESET}"
 
-  if [[ "$TABLE_FORMAT" == "true" ]]; then
+  if [[ "${TABLE_FORMAT}" == "true" ]]; then
     printf "${BOLD}${WHITE}%-20s %-10s %-30s${RESET}\n" "GROUP" "GID" "MEMBERS"
     echo "${DIM}────────────────────────────────────────────────────────────────────${RESET}"
   fi
 
-  getent group | sort -t: -k3 -n | while IFS=: read -r name pass gid members; do
-    if [[ "$TABLE_FORMAT" == "true" ]]; then
+  getent group | sort -t: -k3 -n | while IFS=: read -r name _ gid members; do
+    if [[ "${TABLE_FORMAT}" == "true" ]]; then
       printf "${GREEN}%-20s${RESET} ${YELLOW}%-10s${RESET} ${DIM}%-30s${RESET}\n" \
         "$name" "$gid" "${members:-(none)}"
-    elif [[ "$COMPACT" == "true" ]]; then
+    elif [[ "${COMPACT}" == "true" ]]; then
       echo "$name"
     else
       echo "${GREEN}${name}${RESET} ${DIM}(GID: ${YELLOW}${gid}${RESET})${DIM} → ${members:-(no members)}${RESET}"
     fi
   done
 
-  if [[ "$TABLE_FORMAT" != "true" ]] && [[ "$COMPACT" != "true" ]]; then
+  if [[ "${TABLE_FORMAT}" != "true" ]] && [[ "${COMPACT}" != "true" ]]; then
     echo "${CYAN}══════════════════════════════════════════════════════════════${RESET}"
     echo "${DIM}Total: $(getent group | wc -l) groups${RESET}"
   fi
@@ -172,6 +172,10 @@ get_user_groups() {
   local username="$1"
   local primary_gid
   local user_groups
+  local user_info
+  local uid
+  local home
+  local shell
 
   if ! user_exists "$username"; then
     echo "${RED}Error: User '$username' not found${RESET}" >&2
@@ -179,18 +183,18 @@ get_user_groups() {
   fi
 
   # Get user info
-  local user_info=$(getent passwd "$username")
-  local uid=$(echo "$user_info" | cut -d: -f3)
+  user_info=$(getent passwd "$username")
+  uid=$(echo "$user_info" | cut -d: -f3)
   primary_gid=$(echo "$user_info" | cut -d: -f4)
-  local home=$(echo "$user_info" | cut -d: -f6)
-  local shell=$(echo "$user_info" | cut -d: -f7)
+  home=$(echo "$user_info" | cut -d: -f6)
+  shell=$(echo "$user_info" | cut -d: -f7)
 
   # Get groups
   user_groups=$(id -nG "$username" 2>/dev/null)
 
-  if [[ "$COMPACT" == "true" ]]; then
+  if [[ "${COMPACT}" == "true" ]]; then
     echo "$user_groups" | tr ' ' '\n'
-    return
+    return 0
   fi
 
   # Display header
@@ -198,7 +202,7 @@ get_user_groups() {
   echo "${BOLD}${WHITE}User:${RESET} ${GREEN}${username}${RESET}"
   echo "${BOLD}${WHITE}UID/GID:${RESET} ${YELLOW}${uid}${RESET}/${YELLOW}${primary_gid}${RESET}"
 
-  if [[ "$VERBOSE" == "true" ]]; then
+  if [[ "${VERBOSE}" == "true" ]]; then
     echo "${BOLD}${WHITE}Home:${RESET} ${DIM}${home}${RESET}"
     echo "${BOLD}${WHITE}Shell:${RESET} ${DIM}${shell}${RESET}"
   fi
@@ -213,10 +217,11 @@ get_user_groups() {
 
     # Convert to array and sort
     IFS=' ' read -ra groups_array <<<"$user_groups"
-    if [[ "$SORT_FIELD" == "id" ]]; then
+    if [[ "${SORT_FIELD}" == "id" ]]; then
       # Sort by group ID
       for group in "${groups_array[@]}"; do
-        local gid=$(getent group "$group" | cut -d: -f3)
+        local gid
+        gid=$(getent group "$group" | cut -d: -f3)
         echo "${group}:${gid}"
       done | sort -t: -k2 -n | while IFS=: read -r group gid; do
         print_group_info "$group" "$gid" "$primary_gid"
@@ -224,14 +229,15 @@ get_user_groups() {
     else
       # Sort by name (default)
       printf '%s\n' "${groups_array[@]}" | sort | while read -r group; do
-        local gid=$(getent group "$group" | cut -d: -f3)
+        local gid
+        gid=$(getent group "$group" | cut -d: -f3)
         print_group_info "$group" "$gid" "$primary_gid"
       done
     fi
   fi
 
   # Show permissions if requested
-  if [[ "$SHOW_PERMISSIONS" == "true" ]] && [[ "$EUID" -eq 0 ]]; then
+  if [[ "${SHOW_PERMISSIONS}" == "true" ]] && [[ "$EUID" -eq 0 ]]; then
     echo ""
     echo "${BOLD}${WHITE}User-writable files in /etc owned by user's groups:${RESET}"
     find /etc -type f -group "$username" -perm -o=w 2>/dev/null |
@@ -248,8 +254,9 @@ print_group_info() {
   local group="$1"
   local gid="$2"
   local primary_gid="$3"
+  local members
 
-  if [[ "$SHOW_IDS" == "true" ]]; then
+  if [[ "${SHOW_IDS}" == "true" ]]; then
     if [[ "$gid" == "$primary_gid" ]]; then
       echo "  ${BOLD}${GREEN}• ${group}${RESET} ${DIM}(GID: ${YELLOW}${gid}${RESET}) ${BOLD}${BLUE}[Primary]${RESET}"
     else
@@ -264,8 +271,8 @@ print_group_info() {
   fi
 
   # Show group members if detailed mode
-  if [[ "$DETAILED" == "true" ]]; then
-    local members=$(getent group "$group" | cut -d: -f4)
+  if [[ "${DETAILED}" == "true" ]]; then
+    members=$(getent group "$group" | cut -d: -f4)
     if [[ -n "$members" ]]; then
       echo "    ${DIM}Members: ${members}${RESET}"
     fi
@@ -280,9 +287,10 @@ show_all_users() {
 
   local count=0
   local users
+  local uid
 
   # Get sorted list of users
-  if [[ "$SORT_FIELD" == "user" ]]; then
+  if [[ "${SORT_FIELD}" == "user" ]]; then
     users=$(getent passwd | cut -d: -f1 | sort)
   else
     users=$(getent passwd | cut -d: -f1)
@@ -290,27 +298,34 @@ show_all_users() {
 
   while read -r username; do
     # Skip system users if not verbose
-    if [[ "$VERBOSE" != "true" ]]; then
-      local uid=$(id -u "$username" 2>/dev/null)
-      [[ "$uid" -lt 1000 ]] && [[ "$uid" -ne 0 ]] && continue
+    if [[ "${VERBOSE}" != "true" ]]; then
+      uid=$(id -u "$username" 2>/dev/null || echo 0)
+      if [[ "$uid" -lt 1000 ]] && [[ "$uid" -ne 0 ]]; then
+        continue
+      fi
     fi
 
     echo "${CYAN}────────────────────────────────────────────────────────────────────${RESET}"
 
     # Get user info
-    local user_info=$(getent passwd "$username")
-    local uid=$(echo "$user_info" | cut -d: -f3)
-    local gid=$(echo "$user_info" | cut -d: -f4)
-    local user_groups=$(id -nG "$username" 2>/dev/null | tr ' ' ',')
+    local user_info
+    user_info=$(getent passwd "$username")
+    local uid
+    uid=$(echo "$user_info" | cut -d: -f3)
+    local gid
+    gid=$(echo "$user_info" | cut -d: -f4)
+    local user_groups
+    user_groups=$(id -nG "$username" 2>/dev/null | tr ' ' ',')
 
     echo "${BOLD}${WHITE}User:${RESET} ${GREEN}${username}${RESET}"
     echo "${BOLD}${WHITE}UID/GID:${RESET} ${YELLOW}${uid}${RESET}/${YELLOW}${gid}${RESET}"
     echo "${BOLD}${WHITE}Groups:${RESET} ${DIM}${user_groups}${RESET}"
 
-    if [[ "$SHOW_IDS" == "true" ]]; then
+    if [[ "${SHOW_IDS}" == "true" ]]; then
       echo "${BOLD}${WHITE}Group IDs:${RESET}"
       id -nG "$username" 2>/dev/null | tr ' ' '\n' | while read -r group; do
-        local group_gid=$(getent group "$group" | cut -d: -f3 2>/dev/null)
+        local group_gid
+        group_gid=$(getent group "$group" | cut -d: -f3 2>/dev/null)
         echo "  ${DIM}${group}:${group_gid}${RESET}"
       done
     fi
@@ -385,8 +400,6 @@ parse_args() {
         BOLD=""
         DIM=""
         RESET=""
-        BG_BLUE=""
-        BG_GRAY=""
       fi
       ;;
     -p | --permissions)
