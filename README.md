@@ -71,7 +71,7 @@ wget https://github.com/stefan-hacks/lsgroups/blob/main/lsgroups
 chmod +x lsgroups
 
 # Optionally, move to system PATH
-sudo mv lsgroups /usr/local/bin/lsgroups
+sudo mv lsgroups /usr/local/bin/
 
 # Add completion and source in your bash profile
 source lsgroups-completion.bash
