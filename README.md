@@ -65,13 +65,13 @@ lsgroups -u root -p -v   # Root user with permissions (verbose)
 
 ### **Installation:**
 ```bash
-wget https://github.com/stefan-hacks/lsgroups/blob/main/lsgroups.sh
+wget https://github.com/stefan-hacks/lsgroups/blob/main/lsgroups
 
 # Make it executable
-chmod +x lsgroups.sh
+chmod +x lsgroups
 
 # Optionally, move to system PATH
-sudo cp lsgroups.sh /usr/local/bin/lsgroups
+sudo mv lsgroups /usr/local/bin/lsgroups
 
 # Add completion and source in your bash profile
 source lsgroups-completion.bash
